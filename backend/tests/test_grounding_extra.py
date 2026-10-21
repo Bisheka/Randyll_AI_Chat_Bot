@@ -131,6 +131,20 @@ def test_llm_falls_back_from_gemini_to_claude(monkeypatch):
                                     "source_page": 1, "original_source_pages": "9", "content": "TOPIK Level 3"}], [])
     assert out == "Claude answer" and len(calls) == 2
 
+def test_sinhala_question_translated_for_retrieval_answered_in_sinhala(monkeypatch):
+    a = agent_with([chunk("g::1", "gachon-university", "UNI-08", "Gachon tuition Engineering KRW 5,718,800 per semester.")])
+    seen = {}
+    from app.config import settings
+    monkeypatch.setattr(settings, "anthropic_api_key", "test-key-not-real")
+    monkeypatch.setattr(a, "_translate_to_english", lambda q: "How much is tuition at Gachon University?")
+    def fake_llm(question, hits, history, lang="en"):
+        seen["lang"] = lang; return "Sinhala answer with KRW 5,718,800"
+    monkeypatch.setattr(a, "_llm_answer", fake_llm)
+    sess = sessions.create("gachon-university")
+    r = a.answer(sess, "Gachon විශ්වවිද්‍යාලයේ ගාස්තුව කොපමණද?", None)
+    assert seen["lang"] == "si" and "5,718,800" in r["answer"]
+    assert r["sources"] and r["sources"][0].category_code == "UNI-08"
+
 def test_rate_limit_returns_429(monkeypatch):
     from app.api import main
     from app.security import auth

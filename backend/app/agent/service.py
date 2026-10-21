@@ -112,31 +112,48 @@ class Agent:
               "Never promise admission, visa or scholarship outcomes. If sources conflict or note "
               "limited validity, say so explicitly.")
 
-    def _llm_answer(self, question, hits, history):
-        ctx = "\n\n".join(f"[S{i+1}] ({h['university_name']}, {h['category_code']}, categorized PDF p.{h['source_page']}, "
-                          f"original guideline pp.{h.get('original_source_pages')})\n{h['content']}" for i, h in enumerate(hits))
-        msgs = [{"role": m["role"], "content": m["content"]} for m in history[-6:] if m["role"] in ("user", "assistant")]
-        msgs.append({"role": "user", "content": f"Sources:\n{ctx}\n\nQuestion: {question}"})
-        # Provider chain: Gemini -> Claude -> OpenAI. A failing/timing-out
-        # provider falls through to the next one instead of failing the answer.
+    def _call_provider(self, msgs, system=None):
+        """Run the provider chain (Gemini -> Claude -> OpenAI) with any system prompt."""
         providers = []
-        if settings.gemini_api_key: providers.append(self._gemini_answer)
-        if settings.anthropic_api_key: providers.append(self._anthropic_answer)
-        if settings.openai_api_key: providers.append(self._openai_answer)
+        if settings.gemini_api_key: providers.append(lambda m: self._gemini_answer(m, system))
+        if settings.anthropic_api_key: providers.append(lambda m: self._anthropic_answer(m, system))
+        if settings.openai_api_key: providers.append(lambda m: self._openai_answer(m, system))
         last = None
         for fn in providers:
             try: return fn(msgs)
             except Exception as e: last = e
         raise RuntimeError(f"all LLM providers failed: {type(last).__name__ if last else 'none configured'}")
 
-    def _openai_answer(self, msgs):
+    def _translate_to_english(self, text: str) -> str:
+        """Sinhala (or other) question -> English, so keyword/retrieval layers work."""
+        try:
+            out = self._call_provider(
+                [{"role": "user", "content": f"Translate this student question to English. "
+                                             f"Output only the translation:\n{text}"}],
+                system="You are a translator. Output only the English translation, nothing else.")
+            return out.strip() or text
+        except Exception:
+            return text
+
+    def _llm_answer(self, question, hits, history, lang="en"):
+        ctx = "\n\n".join(f"[S{i+1}] ({h['university_name']}, {h['category_code']}, categorized PDF p.{h['source_page']}, "
+                          f"original guideline pp.{h.get('original_source_pages')})\n{h['content']}" for i, h in enumerate(hits))
+        msgs = [{"role": m["role"], "content": m["content"]} for m in history[-6:] if m["role"] in ("user", "assistant")]
+        msgs.append({"role": "user", "content": f"Sources:\n{ctx}\n\nQuestion: {question}"})
+        system = self.SYSTEM
+        if lang == "si":
+            system += (" Respond entirely in Sinhala (සිංහල), in clean markdown as above. "
+                       "Keep KRW amounts, percentages, dates and university names exactly as in the sources.")
+        return self._call_provider(msgs, system)
+
+    def _openai_answer(self, msgs, system=None):
         from openai import OpenAI
         r = OpenAI(api_key=settings.openai_api_key).chat.completions.create(
             model=settings.openai_chat_model, temperature=0,
-            messages=[{"role": "system", "content": self.SYSTEM}, *msgs])
+            messages=[{"role": "system", "content": system or self.SYSTEM}, *msgs])
         return r.choices[0].message.content.strip()
 
-    def _gemini_answer(self, msgs):
+    def _gemini_answer(self, msgs, system=None):
         """Gemini via the generateContent API. Key sent only as a header, never logged."""
         import httpx
         contents = [{"role": "model" if m["role"] == "assistant" else "user",
@@ -145,7 +162,7 @@ class Agent:
             f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent",
             timeout=60, headers={"x-goog-api-key": settings.gemini_api_key,
                                  "content-type": "application/json"},
-            json={"systemInstruction": {"parts": [{"text": self.SYSTEM}]},
+            json={"systemInstruction": {"parts": [{"text": system or self.SYSTEM}]},
                   "contents": contents, "generationConfig": {"temperature": 0}})
         r.raise_for_status()
         parts = r.json().get("candidates", [{}])[0].get("content", {}).get("parts", [])
@@ -153,14 +170,14 @@ class Agent:
         if not text.strip(): raise RuntimeError("empty Gemini response")
         return text.strip()
 
-    def _anthropic_answer(self, msgs):
+    def _anthropic_answer(self, msgs, system=None):
         """Claude via the Messages API. The key is sent only as a header, never logged."""
         import httpx
         r = httpx.post("https://api.anthropic.com/v1/messages", timeout=60, headers={
             "x-api-key": settings.anthropic_api_key,
             "anthropic-version": "2023-06-01", "content-type": "application/json"},
             json={"model": settings.anthropic_model, "max_tokens": 1024,
-                  "system": self.SYSTEM, "messages": msgs})
+                  "system": system or self.SYSTEM, "messages": msgs})
         r.raise_for_status()
         text = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
         if not text.strip(): raise RuntimeError("empty Anthropic response")
@@ -177,13 +194,17 @@ class Agent:
         return "\n".join(lines)
 
     def answer(self, session: dict, question: str, university_id: str | None):
-        category = detect_category(question)
+        # Sinhala (or any non-English) question: translate for intent/retrieval,
+        # answer in the student's own language.
+        lang = "si" if re.search(r"[඀-෿]", question) else "en"
+        rq = self._translate_to_english(question) if lang == "si" else question
+        category = detect_category(rq)
         # Priority: explicit API selection > university named in the question > session.
         # (Session-first ordering answered explicit Gachon questions from Hannam sources.)
         uni = next((u for u in self.universities if u["university_id"] == university_id), None) \
-              or detect_university(question, self.universities) \
+              or detect_university(rq, self.universities) or detect_university(question, self.universities) \
               or next((u for u in self.universities if u["university_id"] == session.get("university_id")), None)
-        degree_explicit = detect_degree(question)
+        degree_explicit = detect_degree(rq)
         degree = degree_explicit or session.get("degree_level")
         missing = []
         if not uni and self.universities and category not in (None, "UNI-01"):
@@ -193,7 +214,7 @@ class Agent:
                     ", ".join(u["university_name"] for u in self.universities) + ".",
                     "sources": [], "follow_ups": [], "needs_counsellor": False,
                     "missing_information": ["university"], "intent_category": category}
-        intake = detect_intake(question)
+        intake = detect_intake(rq)
         if not intake["academic_year"] and session.get("intake"):
             y = re.search(r"(20\d{2})", session["intake"]); intake["academic_year"] = int(y.group(1)) if y else None
             intake["semester"] = intake["semester"] or ("SPRING" if "SPRING" in session["intake"] else
@@ -201,15 +222,15 @@ class Agent:
         # Metadata filters BEFORE semantic search; university filter is never widened.
         filters = {"university_id": uni["university_id"] if uni else None, "category_code": category,
                    "degree_level": degree, **intake}
-        hits = self._retrieve(question, filters)
+        hits = self._retrieve(rq, filters)
         if not hits and category:  # widen category within the same university+intake, never across universities
-            hits = self._retrieve(question, {**filters, "category_code": None})
+            hits = self._retrieve(rq, {**filters, "category_code": None})
         if not hits and degree and not degree_explicit:
             # A session-inferred degree may be stale; relax it last, still inside the
             # university. An explicitly requested degree is never relaxed either.
             # An intake explicitly named in the question is NEVER relaxed — answering
             # from a different intake would mix guidelines (see adversarial tests).
-            hits = self._retrieve(question, {**filters, "category_code": None, "degree_level": None})
+            hits = self._retrieve(rq, {**filters, "category_code": None, "degree_level": None})
         if not hits:
             sessions.log_failure(session["id"], question, "no approved evidence retrieved")
             return {"answer": settings.fallback_message, "sources": [], "follow_ups": [],
@@ -219,7 +240,7 @@ class Agent:
                              original_source_pages=h.get("original_source_pages"),
                              excerpt=" ".join(h["content"].split())[:300]) for h in hits]
         try:
-            text = self._llm_answer(question, hits, session.get("messages", [])) if settings.llm_provider != "extractive" \
+            text = self._llm_answer(question, hits, session.get("messages", []), lang=lang) if settings.llm_provider != "extractive" \
                    else self._extractive_answer(hits[0]["university_name"], hits)
         except Exception:
             text = self._extractive_answer(hits[0]["university_name"], hits)
