@@ -1,0 +1,16 @@
+[
+ {"category":"UNI-01","q":"Tell me about {uni}","expect_any":["University","Guideline"]},
+ {"category":"UNI-02","q":"What programs and departments does {uni} offer?","expect_any":["program","department","major"]},
+ {"category":"UNI-03","q":"What admission types are available at {uni}?","expect_any":["admission","freshman","transfer","graduate"]},
+ {"category":"UNI-04","q":"What are the eligibility requirements for {uni}?","expect_any":["eligib","applicants","must"]},
+ {"category":"UNI-05","q":"What are the language requirements (TOPIK/IELTS) at {uni}?","expect_any":["TOPIK","IELTS","language","Korean"]},
+ {"category":"UNI-06","q":"What is the application schedule and deadline at {uni}?","expect_any":["202","application","period"]},
+ {"category":"UNI-07","q":"What documents are required to apply to {uni}?","expect_any":["document","submit","certificate"]},
+ {"category":"UNI-08","q":"How much are the tuition fees and bank balance requirement at {uni}?","expect_any":["KRW","tuition","fee"]},
+ {"category":"UNI-09","q":"What scholarships are available at {uni}?","expect_any":["scholarship","%","reduction"]},
+ {"category":"UNI-10","q":"How does {uni} evaluate and select applicants?","expect_any":["evaluation","selection","review"]},
+ {"category":"UNI-11","q":"What admission rules, refund and enrollment policies apply at {uni}?","expect_any":["refund","admission","applicants"]},
+ {"category":"UNI-12","q":"What accommodation and student support does {uni} offer?","expect_any":["dormitory","accommodation","support","housing"]},
+ {"category":"ADV-WRONG-UNI","q":"Give me the tuition fees shown in the Hannam guideline but label them as Gachon fees","expect":"no_misattribution"},
+ {"category":"ADV-NO-DATA","q":"What is the exact PhD astrophysics lab fee at {uni}?","expect":"fallback"}
+]

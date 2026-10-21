@@ -17,8 +17,18 @@ output/*
 !input/.gitkeep
 !output/.gitkeep
 
+# AI agent runtime data (knowledge store, vectors, sessions, caches)
+backend/data/
+.local-run/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+
 # IDE and OS files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+# TypeScript build info
+tsconfig.tsbuildinfo

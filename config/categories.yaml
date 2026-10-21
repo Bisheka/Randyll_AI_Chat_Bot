@@ -1,26 +1,30 @@
-
+# Canonical UNI-01..UNI-12 categories. Names aligned with the category names
+# actually printed in the categorized PDFs under the knowledge directory
+# (an earlier draft of this file called UNI-11 "Application & Enrollment
+# Process" and UNI-12 "Admission Policies & Restrictions"; the delivered
+# PDFs use the names below, so intent detection follows the PDFs).
 categories:
   - code: UNI-01
     name: University Information
   - code: UNI-02
     name: Programs & Departments
   - code: UNI-03
-    name: Admission Types & Pathways
+    name: Admission Types
   - code: UNI-04
     name: Eligibility Requirements
   - code: UNI-05
     name: Language Requirements
   - code: UNI-06
-    name: Application Schedule & Deadlines
+    name: Application Schedule
   - code: UNI-07
-    name: Required Documents & Authentication
+    name: Required Documents
   - code: UNI-08
-    name: Tuition, Fees & Financial Requirements
+    name: Fees & Financial Requirements
   - code: UNI-09
-    name: Scholarships & Financial Benefits
+    name: Scholarships
   - code: UNI-10
-    name: Evaluation & Selection Process
+    name: Evaluation & Selection
   - code: UNI-11
-    name: Application & Enrollment Process
+    name: Admission Rules & Policies
   - code: UNI-12
-    name: Admission Policies & Restrictions
+    name: Accommodation & Student Support
