@@ -1,0 +1,26 @@
+
+categories:
+  - code: UNI-01
+    name: University Information
+  - code: UNI-02
+    name: Programs & Departments
+  - code: UNI-03
+    name: Admission Types & Pathways
+  - code: UNI-04
+    name: Eligibility Requirements
+  - code: UNI-05
+    name: Language Requirements
+  - code: UNI-06
+    name: Application Schedule & Deadlines
+  - code: UNI-07
+    name: Required Documents & Authentication
+  - code: UNI-08
+    name: Tuition, Fees & Financial Requirements
+  - code: UNI-09
+    name: Scholarships & Financial Benefits
+  - code: UNI-10
+    name: Evaluation & Selection Process
+  - code: UNI-11
+    name: Application & Enrollment Process
+  - code: UNI-12
+    name: Admission Policies & Restrictions
