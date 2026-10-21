@@ -32,6 +32,17 @@ def test_metadata_from_header_not_guessed(tmp_path):
     m2 = md.parse("no header here", p)
     assert m2["needs_review"] and "missing university_name" in m2["review_reasons"]
 
+def test_metadata_alternate_knu_header_layout(tmp_path):
+    text = ("UNI-01   University Information\nKongju National University - 2027 Spring Graduate Admission\n"
+            "University\nKongju National University\nSource guide\n2027 Spring Semester Graduate School "
+            "Admission Guide for International Students\nIntake\n2027 Spring - Graduate (Master's / Doctoral)\n"
+            "Category\nUNI-01 - University Information\n")
+    p = tmp_path / "KNU_2027S_Grad_UNI-01_University_Information.pdf"
+    m = md.parse(text, p)
+    assert m["university_name"] == "Kongju National University" and m["category_code"] == "UNI-01"
+    assert m["academic_year"] == 2027 and m["semester"] == "SPRING" and m["degree_level"] == "graduate"
+    assert not m["needs_review"]
+
 def test_chunking_keeps_heading_with_body():
     chunks = chunk_page("1. Fees\nApplication fee KRW 150,000 must be paid. " + "x " * 60 +
                         "\n2. Tuition\nEngineering KRW 5,718,800 per semester. " + "y " * 60)

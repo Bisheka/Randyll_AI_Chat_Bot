@@ -7,7 +7,7 @@ HEADER = re.compile(
     r"University\s*\n(.+?)\s*\nGuideline\s*\n(.+?)\s*\nAcademic year / semester\s*\n(.+?)\s*\n"
     r"Category\s*\n(UNI-\d{2})\s*-\s*(.+?)\s*\nSource pages \(original PDF\)\s*\n(.+?)\s*\n"
     r"Source file\s*\n(.+?)\s*\nStatus\s*\n(\S+)", re.S)
-CAT_FILE = re.compile(r"^(UNI-\d{2})[_-]", re.I)
+CAT_FILE = re.compile(r"(UNI-\d{2})", re.I)  # anywhere: KNU_2027S_Grad_UNI-01_... is valid
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
@@ -26,11 +26,31 @@ def parse(text: str, path: Path) -> dict:
         d["academic_year"] = int(ym.group(1)) if ym else None
         d["semester"] = "SPRING" if re.search(r"spring|1st|1학기", yearsem, re.I) else \
                         "FALL" if re.search(r"fall|2nd|2학기", yearsem, re.I) else None
-    fm = CAT_FILE.match(path.name)
+    fm = CAT_FILE.search(path.name)
     if fm:
         if d["category_code"] and d["category_code"] != fm.group(1).upper():
             reasons.append(f"filename category {fm.group(1)} != header {d['category_code']}")
         d["category_code"] = d["category_code"] or fm.group(1).upper()
+    if not d["university_name"] or not d["category_code"] or not d["academic_year"]:
+        # Alternate header layout (e.g. Kongju/KNU): loose labelled lines.
+        t = text or ""
+        if not d["university_name"]:
+            u = re.search(r"^University\s*\n(.+)", t, re.M)
+            if u: d["university_name"] = u.group(1).strip()
+        if not d["category_code"]:
+            c = re.search(r"Category\s*\n(UNI-\d{2})\s*-\s*([^\n]+)", t)
+            if c: d.update(category_code=c.group(1).upper(), category_name=c.group(2).strip())
+        intake = re.search(r"Intake\s*\n([^\n]+)", t)
+        scope = intake.group(1) if intake else t[:1200]
+        if not d["academic_year"]:
+            y = re.search(r"(20\d{2})", scope)
+            d["academic_year"] = int(y.group(1)) if y else None
+        if not d["semester"]:
+            d["semester"] = "SPRING" if re.search(r"spring", scope, re.I) else \
+                            "FALL" if re.search(r"fall", scope, re.I) else None
+        if not d.get("guideline"):
+            sg = re.search(r"Source guide\s*\n([^\n]+)", t)
+            if sg: d["guideline"] = sg.group(1).strip()
     g = (d.get("guideline") or path.parent.name)
     # "undergraduate" contains "graduate" — check it first / use word boundaries
     d["degree_level"] = "undergraduate" if re.search(r"undergraduate|freshman|transfer|bachelor", g, re.I) else \
