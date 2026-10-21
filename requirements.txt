@@ -1,9 +1,0 @@
-
-pymupdf
-pdfplumber
-openai
-pydantic
-pyyaml
-reportlab
-python-dotenv
-pytest
