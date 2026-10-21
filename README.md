@@ -1,4 +1,4 @@
-# Randyll PDF Categorizer
+# Randyll_AI_Chat_Bot
 
 ## Set up on Windows
 
